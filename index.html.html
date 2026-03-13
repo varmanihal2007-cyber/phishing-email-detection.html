@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Cyber Shield Email Scanner</title>
+<style>
+body{
+    margin:0;
+    font-family:monospace;
+    overflow:hidden;
+    background:black;
+}
+canvas{
+    position:fixed;
+    top:0;
+    left:0;
+    z-index:-2;
+}
+.box{
+    display:none;
+    background:rgba(0,0,0,0.85);
+    border-radius:12px;
+    border:1px solid #00ff9c;
+    box-shadow:0 0 50px #00ff9c inset,0 0 30px #00ff9c;
+    position:relative;
+    z-index:5;
+    padding:20px;
+}
+.title{
+    font-size:42px;
+    color:#00ff9c;
+    text-shadow:0 0 15px #00ff9c;
+    animation:glitch 2s infinite;
+    margin-bottom:15px;
+}
+@keyframes glitch{
+0%{text-shadow:2px 2px red}
+50%{text-shadow:-2px -2px blue}
+100%{text-shadow:2px 2px red}
+}
+input,textarea{
+    width:100%;
+    padding:12px;
+    margin-top:12px;
+    background:#111;
+    border:none;
+    color:#00ff9c;
+    border-radius:6px;
+    outline:none;
+}
+input:focus,textarea:focus{
+    border:2px solid #00ff9c;
+    box-shadow:0 0 15px #00ff9c;
+}
+button{
+    margin-top:15px;
+    padding:12px 18px;
+    background:#00ff9c;
+    border:none;
+    font-weight:bold;
+    cursor:pointer;
+    border-radius:6px;
+    box-shadow:0 0 15px #00ff9c inset,0 0 20px #00ff9c;
+}
+button:hover{
+    background:#00cc7a;
+    box-shadow:0 0 25px #00ff9c inset,0 0 30px #00ff9c;
+}
+.result{
+    margin-top:20px;
+    font-size:20px;
+    font-weight:bold;
+    text-shadow:0 0 12px #00ff9c;
+}
+.counter{
+    font-size:20px;
+    color:#00ff9c;
+    margin:6px 0;
+    animation:pulse 1.5s infinite alternate;
+}
+@keyframes pulse{
+    0%{text-shadow:0 0 8px #00ff9c;}
+    100%{text-shadow:0 0 18px #00ff9c;}
+}
+.chartBar{
+    width:0;
+    height:18px;
+    background:#00ff9c;
+    margin:6px 0;
+    border-radius:4px;
+    transition: width 1.2s ease;
+}
+.tip{
+    margin:10px 0;
+    padding:8px;
+    border-radius:6px;
+    background:rgba(0,255,156,0.1);
+    border-left:3px solid #00ff9c;
+    color:white;
+    font-size:13px;
+}
+.tip:hover{
+    background:rgba(0,255,156,0.2);
+    box-shadow:0 0 12px #00ff9c;
+}
+</style>
+</head>
+<body>
+
+<!-- CANVASES -->
+<canvas id="welcomeCanvas"></canvas>
+<canvas id="mainCanvas" style="display:none;"></canvas>
+<canvas id="dashboardCanvas" style="display:none;"></canvas>
+
+<!-- WELCOME PAGE -->
+<div id="welcomePage" style="position:fixed;width:100%;height:100%;display:flex;justify-content:center;align-items:center;flex-direction:column;text-align:center;z-index:10;">
+    <div style="font-size:70px;color:#00ff9c;text-shadow:0 0 20px #00ff9c,0 0 40px #00ff9c,0 0 80px #00ff9c;">CYBER SHIELD</div>
+    <div style="font-size:24px;color:#ffffffaa;margin-top:15px;">Protecting your inbox from phishing attacks...</div>
+</div>
+
+<!-- MAIN PAGE -->
+<div class="box" id="mainBox" style="width:720px;margin:60px auto;">
+    <div class="title">PHISHING EMAIL DETECTION</div>
+    <input type="text" placeholder="Email Header" id="header">
+    <textarea rows="6" placeholder="Paste email content here..." id="email"></textarea>
+    <button onclick="scan()">Scan Email</button>
+    <div class="result" id="result"></div>
+</div>
+
+<!-- DASHBOARD PAGE -->
+<div class="box" id="dashboardBox" style="width:360px;right:20px;top:80px;position:fixed;padding:20px;">
+    <div class="title" style="font-size:28px;">SCAN SUMMARY</div>
+    <div class="counter" id="safeCounter">Safe Emails: 0</div>
+    <div class="counter" id="suspiciousCounter">Suspicious Emails: 0</div>
+    <div class="counter" id="phishingCounter">Phishing Emails: 0</div>
+
+    <div class="chartBar" id="safeBar"></div>
+    <div class="chartBar" id="suspiciousBar"></div>
+    <div class="chartBar" id="phishingBar"></div>
+
+    <div id="chartContainer" style="margin-top:20px;">
+        <canvas id="pieChart" width="300" height="150"></canvas>
+    </div>
+
+    <h3 style="color:#00ff9c;margin-top:15px;font-size:16px;">Protection Tips:</h3>
+    <div class="tip">Never click unknown links or attachments.</div>
+    <div class="tip">Verify sender's email before responding.</div>
+    <div class="tip">Use multi-factor authentication.</div>
+    <div class="tip">Keep antivirus/software updated.</div>
+    <div class="tip">Change passwords regularly and avoid reuse.</div>
+
+    <button onclick="backToScan()" style="font-size:14px;padding:10px 14px;">Back to Scan</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+window.onload=function(){
+    // ===== WELCOME PAGE =====
+    const welcomeCanvas=document.getElementById("welcomeCanvas");
+    const wCtx=welcomeCanvas.getContext("2d");
+    welcomeCanvas.width=window.innerWidth; welcomeCanvas.height=window.innerHeight;
+    let wObjs=[];
+    for(let i=0;i<120;i++){
+        wObjs.push({x:Math.random()*welcomeCanvas.width,y:Math.random()*welcomeCanvas.height,size:Math.random()*20+10,speed:Math.random()*1.5+0.5,type:Math.random()*3|0,color:`hsl(${Math.random()*50+140},100%,50%)`});
+    }
+    function drawWelcome(){
+        wCtx.fillStyle="rgba(0,0,0,0.08)"; wCtx.fillRect(0,0,welcomeCanvas.width,welcomeCanvas.height);
+        wObjs.forEach(o=>{
+            wCtx.save(); wCtx.translate(o.x,o.y); wCtx.shadowBlur=15; wCtx.shadowColor=o.color; wCtx.strokeStyle=o.color; wCtx.fillStyle=o.color;
+            if(o.type==0){wCtx.beginPath();wCtx.rect(-o.size/2,-o.size/2,o.size,o.size*0.7);wCtx.stroke();} 
+            else if(o.type==1){wCtx.beginPath(); wCtx.moveTo(0,-o.size/2); wCtx.lineTo(-o.size/2,o.size/2); wCtx.lineTo(o.size/2,o.size/2); wCtx.closePath(); wCtx.stroke();}
+            else{wCtx.beginPath(); wCtx.arc(0,0,o.size/2,0,Math.PI*2); wCtx.stroke();}
+            wCtx.restore(); o.y+=o.speed; if(o.y>welcomeCanvas.height){o.y=-o.size;o.x=Math.random()*welcomeCanvas.width;}
+        });
+    }
+    let welcomeInterval=setInterval(drawWelcome,33);
+    setTimeout(()=>{
+        document.getElementById("welcomePage").style.opacity=0;
+        setTimeout(()=>{
+            document.getElementById("welcomePage").style.display="none";
+            clearInterval(welcomeInterval);
+            welcomeCanvas.style.display="none";
+            document.getElementById("mainCanvas").style.display="block";
+            document.getElementById("mainBox").style.display="block";
+            startMainCanvas();
+        },1500);
+    },3000);
+
+    // ===== MAIN CANVAS =====
+    function startMainCanvas(){
+        const mainCanvas=document.getElementById("mainCanvas"); const mCtx=mainCanvas.getContext("2d");
+        mainCanvas.width=window.innerWidth; mainCanvas.height=window.innerHeight;
+        let mObjs=[];
+        for(let i=0;i<120;i++){
+            mObjs.push({x:Math.random()*mainCanvas.width,y:Math.random()*mainCanvas.height,size:Math.random()*20+15,speed:Math.random()*2+1,color:`hsl(${Math.random()*100+140},100%,50%)`,trail:[]});
+        }
+        function drawMain(){
+            mCtx.fillStyle="rgba(0,0,0,0.08)"; mCtx.fillRect(0,0,mainCanvas.width,mainCanvas.height);
+            mObjs.forEach(o=>{
+                o.trail.push({x:o.x,y:o.y}); if(o.trail.length>12)o.trail.shift();
+                o.trail.forEach((t,i)=>{mCtx.globalAlpha=i/o.trail.length*0.6; mCtx.fillStyle=o.color; mCtx.fillRect(t.x,t.y,2,2);}); mCtx.globalAlpha=1;
+                oCtxSave=mCtx.save(); mCtx.translate(o.x,o.y); mCtx.strokeStyle=o.color; mCtx.lineWidth=2; mCtx.shadowColor=o.color; mCtx.shadowBlur=8;
+                mCtx.beginPath(); mCtx.moveTo(0,0); mCtx.lineTo(o.size,0); mCtx.lineTo(o.size/2,o.size/2); mCtx.closePath(); mCtx.stroke(); mCtx.restore();
+                o.y+=o.speed; if(o.y>mainCanvas.height){o.y=-o.size;o.x=Math.random()*mainCanvas.width;o.trail=[];}
+            });
+        }
+        setInterval(drawMain,33);
+    }
+
+    // ===== SCAN =====
+    let counters={safe:0,suspicious:0,phishing:0};
+    window.scan=function(){
+        let email=document.getElementById("email").value.toLowerCase();
+        let words=["verify account","urgent","bank","login now","password","click here","confirm identity","free money"];
+        let score=0; words.forEach(w=>{if(email.includes(w))score++;});
+        let res=document.getElementById("result");
+        if(score==0){res.innerHTML="SAFE EMAIL"; res.style.color="#00ff9c"; counters.safe++;}
+        else if(score<=2){res.innerHTML="SUSPICIOUS EMAIL"; res.style.color="#ffff00"; counters.suspicious++;}
+        else{res.innerHTML="⚠ PHISHING EMAIL DETECTED"; res.style.color="#ff0000"; counters.phishing++;}
+        setTimeout(showDashboard,1200);
+    }
+
+    // ===== DASHBOARD =====
+    function showDashboard(){
+        document.getElementById("mainBox").style.display="none";
+        const dash=document.getElementById("dashboardBox"); dash.style.display="block";
+
+        let safe=0,suspicious=0,phishing=0;
+        let safeTarget=counters.safe, suspiciousTarget=counters.suspicious, phishingTarget=counters.phishing;
+        let interval=setInterval(()=>{
+            if(safe<safeTarget){safe++;document.getElementById("safeCounter").innerHTML="Safe Emails: "+safe;}
+            if(suspicious<suspiciousTarget){suspicious++;document.getElementById("suspiciousCounter").innerHTML="Suspicious Emails: "+suspicious;}
+            if(phishing<phishingTarget){phishing++;document.getElementById("phishingCounter").innerHTML="Phishing Emails: "+phishing;}
+            if(safe>=safeTarget && suspicious>=suspiciousTarget && phishing>=phishingTarget){clearInterval(interval);
+                let total=safe+suspicious+phishing; if(total===0) total=1;
+                document.getElementById("safeBar").style.width=(safe/total*100)+"%";
+                document.getElementById("suspiciousBar").style.width=(suspicious/total*100)+"%";
+                document.getElementById("phishingBar").style.width=(phishing/total*100)+"%";
+
+                // Pie Chart
+                const ctx=document.getElementById("pieChart").getContext("2d");
+                new Chart(ctx,{
+                    type:'pie',
+                    data:{labels:['Safe','Suspicious','Phishing'],datasets:[{data:[safe,suspicious,phishing],backgroundColor:['#00ff9c','#ffff00','#ff0000']}]},
+                    options:{plugins:{legend:{position:'bottom',labels:{color:'#00ff9c',font:{size:14}}}}}
+                });
+            }
+        },40);
+
+        // Dashboard falling
+        const dashboardCanvas=document.getElementById("dashboardCanvas"); dashboardCanvas.style.display="block";
+        const dCtx=dashboardCanvas.getContext("2d"); dashboardCanvas.width=window.innerWidth; dashboardCanvas.height=window.innerHeight;
+        let dObjs=[];
+        for(let i=0;i<120;i++){
+            dObjs.push({x:Math.random()*dashboardCanvas.width,y:Math.random()*dashboardCanvas.height,size:Math.random()*20+8,speed:Math.random()*1.2+0.5,type:Math.random()*4|0,color:`hsl(${Math.random()*50+140},100%,50%)`});
+        }
+        setInterval(()=>{
+            dCtx.fillStyle="rgba(0,0,0,0.08)"; dCtx.fillRect(0,0,dashboardCanvas.width,dashboardCanvas.height);
+            dObjs.forEach(o=>{
+                dCtx.save(); dCtx.translate(o.x,o.y); dCtx.shadowBlur=10; dCtx.shadowColor=o.color; dCtx.strokeStyle=o.color; dCtx.fillStyle=o.color;
+                if(o.type==0){dCtx.beginPath();dCtx.rect(-o.size/2,-o.size/2,o.size,o.size*0.7);dCtx.stroke();}
+                else if(o.type==1){dCtx.beginPath(); dCtx.moveTo(0,-o.size/2); dCtx.lineTo(-o.size/2,o.size/2); dCtx.lineTo(o.size/2,o.size/2); dCtx.closePath(); dCtx.stroke();}
+                else if(o.type==2){dCtx.beginPath(); dCtx.arc(0,0,o.size/2,0,Math.PI*2); dCtx.stroke();}
+                else{dCtx.beginPath();dCtx.moveTo(-o.size/2,-o.size/2);dCtx.lineTo(o.size/2,o.size/2);dCtx.stroke();}
+                dCtx.restore(); o.y+=o.speed; if(o.y>dashboardCanvas.height){o.y=-o.size;o.x=Math.random()*dashboardCanvas.width;}
+            });
+        },33);
+    }
+
+    window.backToScan=function(){
+        document.getElementById("dashboardBox").style.display="none";
+        document.getElementById("mainBox").style.display="block";
+    }
+}
+</script>
+</body>
+</html>
